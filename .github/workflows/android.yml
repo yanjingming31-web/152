@@ -20,38 +20,40 @@ jobs:
 
     - name: Extract project
       run: |
-        # 创建 source 目录，并把 source.zip 解压进去
-        mkdir -p source
-        unzip -q source.zip -d source
+        echo "====== 第一步：检查压缩包是否存在 ======"
+        ls -la
         
-        echo "=== 解压成功，当前目录结构如下 ==="
+        echo "====== 第二步：开始解压 source.zip ======"
+        mkdir -p source
+        unzip -q source.zip -d source || true
+        
+        echo "====== 第三步：解压后 source 文件夹内的结构 ======"
         ls -la source
+        find source -maxdepth 3 -type f
 
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v4
       with:
-        # 强制使用 8.9 版本，解决之前版本过低报错
         gradle-version: '8.9'
 
     - name: Build APK
       run: |
-        # 自动寻找 settings.gradle 所在的目录（也就是项目根目录）
-        PROJECT_DIR=$(find source -name settings.gradle -o -name settings.gradle.kts | head -1 | xargs dirname)
+        echo "====== 第四步：寻找 Gradle 项目 ======"
+        # 先获取 settings.gradle 的路径，避免直接传给 dirname 导致报错
+        SETTINGS_FILE=$(find source -name settings.gradle -o -name settings.gradle.kts | head -1)
         
-        if [ -z "$PROJECT_DIR" ]; then
-          echo "❌ 错误：没有找到 Gradle 项目！请检查压缩包内文件结构。"
-          echo "source 目录下的内容如下："
-          find source -maxdepth 3 -type f
+        if [ -z "$SETTINGS_FILE" ]; then
+          echo "❌ 错误：在 source 目录下找不到 settings.gradle 或 settings.gradle.kts 文件！"
+          echo "这说明你上传的 ZIP 包内部结构不正确，或者解压出来的内容不是 Android 工程。"
           exit 1
         fi
         
+        # 获取项目根目录
+        PROJECT_DIR=$(dirname "$SETTINGS_FILE")
         echo "✅ 成功找到项目目录: $PROJECT_DIR"
+        
         cd "$PROJECT_DIR"
-        
-        # 赋予执行权限
         chmod +x gradlew
-        
-        # 开始编译
         echo "🚀 开始编译 APK..."
         ./gradlew --no-daemon assembleDebug
 
@@ -59,6 +61,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: app-debug-apk
-        # 自动寻找编译生成的 apk 文件
-        path: source/**/app/build/outputs/apk/debug/*.apk
+        path: source/**/build/outputs/apk/debug/*.apk
         if-no-files-found: error
