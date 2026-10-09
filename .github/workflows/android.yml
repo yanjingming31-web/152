@@ -20,16 +20,15 @@ jobs:
 
     - name: Extract project
       run: |
-        echo "====== 第一步：检查压缩包是否存在 ======"
+        echo "====== 1. 检查根目录文件 ======"
         ls -la
         
-        echo "====== 第二步：开始解压 source.zip ======"
+        echo "====== 2. 开始解压 source.zip ======"
         mkdir -p source
-        unzip -q source.zip -d source || true
+        unzip -q source.zip -d source || echo "解压失败，请检查 source.zip 是否存在！"
         
-        echo "====== 第三步：解压后 source 文件夹内的结构 ======"
-        ls -la source
-        find source -maxdepth 3 -type f
+        echo "====== 3. 查看 source 内的文件结构 ======"
+        find source -maxdepth 4 -type f
 
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v4
@@ -38,19 +37,20 @@ jobs:
 
     - name: Build APK
       run: |
-        echo "====== 第四步：寻找 Gradle 项目 ======"
-        # 先获取 settings.gradle 的路径，避免直接传给 dirname 导致报错
+        echo "====== 4. 寻找 Gradle 项目 ======"
         SETTINGS_FILE=$(find source -name settings.gradle -o -name settings.gradle.kts | head -1)
         
+        # 关键修改：如果没找到 settings.gradle，立刻报错并退出，绝不执行 dirname
         if [ -z "$SETTINGS_FILE" ]; then
-          echo "❌ 错误：在 source 目录下找不到 settings.gradle 或 settings.gradle.kts 文件！"
-          echo "这说明你上传的 ZIP 包内部结构不正确，或者解压出来的内容不是 Android 工程。"
+          echo "❌ 致命错误：在 source 目录下没有找到 settings.gradle 或 settings.gradle.kts 文件！"
+          echo "这说明你的 source.zip 内部目录结构不对。"
+          echo "请看上面第 3 步打印出的文件列表，确认是否有这个文件。"
           exit 1
         fi
         
-        # 获取项目根目录
+        echo "✅ 成功找到大门文件: $SETTINGS_FILE"
         PROJECT_DIR=$(dirname "$SETTINGS_FILE")
-        echo "✅ 成功找到项目目录: $PROJECT_DIR"
+        echo "✅ 项目根目录位于: $PROJECT_DIR"
         
         cd "$PROJECT_DIR"
         chmod +x gradlew
